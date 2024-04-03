@@ -2,6 +2,7 @@
 
 //#include <NimBLEDevice.h>
 #include "BLEDevice.h"
+#include "BLESecurity.h"
 #include <XboxControllerNotificationParser.h>
 
 #include <XboxSeriesXHIDReportBuilder_asukiaaa.hpp>
