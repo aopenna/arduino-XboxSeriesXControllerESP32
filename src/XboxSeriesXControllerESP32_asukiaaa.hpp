@@ -1,14 +1,7 @@
 #pragma once
 
 //#include <NimBLEDevice.h>
-#include "esp_bt_device.h"
-#include "esp_bt_main.h"
-#include "esp_gap_bt_api.h"
-#if CONFIG_BT_BLE_ENABLED
-#include "esp_gap_ble_api.h"
-#include "esp_gatt_defs.h"
-#include "esp_gattc_api.h"
-#endif // CONFIG_BT_BLE_ENABLED
+#include "BLEDevice.h"
 #include <XboxControllerNotificationParser.h>
 
 #include <XboxSeriesXHIDReportBuilder_asukiaaa.hpp>
