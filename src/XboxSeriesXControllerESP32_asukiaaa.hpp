@@ -1,6 +1,14 @@
 #pragma once
 
-#include <NimBLEDevice.h>
+//#include <NimBLEDevice.h>
+#include "esp_bt_device.h"
+#include "esp_bt_main.h"
+#include "esp_gap_bt_api.h"
+#if CONFIG_BT_BLE_ENABLED
+#include "esp_gap_ble_api.h"
+#include "esp_gatt_defs.h"
+#include "esp_gattc_api.h"
+#endif // CONFIG_BT_BLE_ENABLED
 #include <XboxControllerNotificationParser.h>
 
 #include <XboxSeriesXHIDReportBuilder_asukiaaa.hpp>
@@ -12,17 +20,17 @@ const unsigned long printInterval = 100UL;
 
 namespace XboxSeriesXControllerESP32_asukiaaa {
 
-static NimBLEUUID uuidServiceGeneral("1801");
-static NimBLEUUID uuidServiceBattery("180f");
-static NimBLEUUID uuidServiceHid("1812");
-static NimBLEUUID uuidCharaReport("2a4d");
-static NimBLEUUID uuidCharaPnp("2a50");
-static NimBLEUUID uuidCharaHidInformation("2a4a");
-static NimBLEUUID uuidCharaPeripheralAppearance("2a01");
-static NimBLEUUID uuidCharaPeripheralControlParameters("2a04");
+static BLEUUID uuidServiceGeneral("1801");
+static BLEUUID uuidServiceBattery("180f");
+static BLEUUID uuidServiceHid("1812");
+static BLEUUID uuidCharaReport("2a4d");
+static BLEUUID uuidCharaPnp("2a50");
+static BLEUUID uuidCharaHidInformation("2a4a");
+static BLEUUID uuidCharaPeripheralAppearance("2a01");
+static BLEUUID uuidCharaPeripheralControlParameters("2a04");
 
-static NimBLEAdvertisedDevice* advDevice;
-static NimBLEClient* pConnectedClient = nullptr;
+static BLEAdvertisedDevice* advDevice;
+static BLEClient* pConnectedClient = nullptr;
 
 static const uint16_t controllerAppearance = 964;
 static const String controllerManufacturerDataNormal = "060000";
@@ -35,14 +43,14 @@ enum class ConnectionState : uint8_t {
   Scanning = 3,
 };
 
-class ClientCallbacks : public NimBLEClientCallbacks {
+class ClientCallbacks : public BLEClientCallbacks {
  public:
   ConnectionState* pConnectionState;
   ClientCallbacks(ConnectionState* pConnectionState) {
     this->pConnectionState = pConnectionState;
   }
 
-  void onConnect(NimBLEClient* pClient) {
+  void onConnect(BLEClient* pClient) {
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
     XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL.println("Connected");
 #endif
@@ -50,7 +58,7 @@ class ClientCallbacks : public NimBLEClientCallbacks {
     // pClient->updateConnParams(120,120,0,60);
   };
 
-  void onDisconnect(NimBLEClient* pClient) {
+  void onDisconnect(BLEClient* pClient) {
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
     XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL.print(
         pClient->getPeerAddress().toString().c_str());
@@ -81,28 +89,28 @@ class ClientCallbacks : public NimBLEClientCallbacks {
     if (!desc->sec_state.encrypted) {
       // Serial.println("Encrypt connection failed - disconnecting");
       /** Find the client with the connection handle provided in desc */
-      NimBLEDevice::getClientByID(desc->conn_handle)->disconnect();
+      BLEDevice::getClientByID(desc->conn_handle)->disconnect();
       return;
     }
   };
 };
 
 /** Define a class to handle the callbacks when advertisments are received */
-class AdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
+class AdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
  public:
   AdvertisedDeviceCallbacks(String strTargetDeviceAddress,
                             ConnectionState* pConnectionState) {
     if (strTargetDeviceAddress != "") {
       this->targetDeviceAddress =
-          new NimBLEAddress(strTargetDeviceAddress.c_str());
+          new BLEAddress(strTargetDeviceAddress.c_str());
     }
     this->pConnectionState = pConnectionState;
   }
 
  private:
-  NimBLEAddress* targetDeviceAddress = nullptr;
+  BLEAddress* targetDeviceAddress = nullptr;
   ConnectionState* pConnectionState;
-  void onResult(NimBLEAdvertisedDevice* advertisedDevice) {
+  void onResult(BLEAdvertisedDevice* advertisedDevice) {
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
     XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL.print("Advertised Device found: ");
     XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL.println(
@@ -116,7 +124,7 @@ class AdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
             ? advertisedDevice->getServiceUUID().toString().c_str()
             : "none");
 #endif
-    char* pHex = NimBLEUtils::buildHexData(
+    char* pHex = BLEUtils::buildHexData(
         nullptr, (uint8_t*)advertisedDevice->getManufacturerData().data(),
         advertisedDevice->getManufacturerData().length());
     if ((targetDeviceAddress != nullptr &&
@@ -132,7 +140,7 @@ class AdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
       XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL.println("Found target");
 #endif
       /** stop scan before connecting */
-      // NimBLEDevice::getScan()->stop();
+      // BLEDevice::getScan()->stop();
       /** Save the device reference in a global for the client to use*/
       *pConnectionState = ConnectionState::Found;
       advDevice = advertisedDevice;
@@ -155,12 +163,12 @@ class Core {
   uint8_t deviceAddressArr[deviceAddressLen];
 
   void begin() {
-    NimBLEDevice::setScanFilterMode(CONFIG_BTDM_SCAN_DUPL_TYPE_DEVICE);
-    // NimBLEDevice::setScanDuplicateCacheSize(200);
-    NimBLEDevice::init("");
-    NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_PUBLIC);
-    NimBLEDevice::setSecurityAuth(true, false, false);
-    NimBLEDevice::setPower(ESP_PWR_LVL_P9); /* +9db */
+    BLEDevice::setScanFilterMode(CONFIG_BTDM_SCAN_DUPL_TYPE_DEVICE);
+    // BLEDevice::setScanDuplicateCacheSize(200);
+    BLEDevice::init("");
+    BLEDevice::setOwnAddrType(BLE_OWN_ADDR_PUBLIC);
+    BLEDevice::setSecurityAuth(true, false, false);
+    BLEDevice::setPower(ESP_PWR_LVL_P9); /* +9db */
   }
 
   void writeHIDReport(uint8_t* dataArr, size_t dataLen) {
@@ -170,7 +178,7 @@ class Core {
 #endif
       return;
     }
-    NimBLEClient* pClient = pConnectedClient;
+    BLEClient* pClient = pConnectedClient;
     auto pService = pClient->getService(uuidServiceHid);
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
     XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL.println(pService->toString().c_str());
@@ -208,7 +216,7 @@ class Core {
       if (advDevice != nullptr) {
         auto connectionResult = connectToServer(advDevice);
         if (!connectionResult || !isConnected()) {
-          NimBLEDevice::deleteBond(advDevice->getAddress());
+          BLEDevice::deleteBond(advDevice->getAddress());
           ++countFailedConnection;
           // reset();
           connectionState = ConnectionState::Scanning;
@@ -233,7 +241,7 @@ class Core {
 
   void startScan() {
     connectionState = ConnectionState::Scanning;
-    auto pScan = NimBLEDevice::getScan();
+    auto pScan = BLEDevice::getScan();
     // pScan->clearResults();
     // pScan->clearDuplicateCache();
     pScan->setDuplicateFilter(false);
@@ -267,10 +275,10 @@ class Core {
   uint8_t countFailedConnection = 0;
   uint8_t retryCountInOneConnection = 3;
   unsigned long retryIntervalMs = 100;
-  NimBLEClient* pClient = nullptr;
+  BLEClient* pClient = nullptr;
 
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
-  static void writeWithComment(NimBLERemoteCharacteristic* pChara,
+  static void writeWithComment(BLERemoteCharacteristic* pChara,
                                uint8_t* data, size_t len) {
     Serial.println("send(print from addr 0) ");
     for (int i = 0; i < len; ++i) {
@@ -285,7 +293,7 @@ class Core {
   }
 #endif
 
-  static void readAndPrint(NimBLERemoteCharacteristic* pChara) {
+  static void readAndPrint(BLERemoteCharacteristic* pChara) {
     auto str = pChara->readValue();
     if (str.size() == 0) {
       str = pChara->readValue();
@@ -295,10 +303,10 @@ class Core {
 #endif
   }
 
-  bool isScanning() { return NimBLEDevice::getScan()->isScanning(); }
+  bool isScanning() { return BLEDevice::getScan()->isScanning(); }
 
   // void reset() {
-  //   NimBLEDevice::deinit(true);
+  //   BLEDevice::deinit(true);
   //   delay(500);
   //   begin();
   //   delay(500);
@@ -306,12 +314,12 @@ class Core {
 
   /** Handles the provisioning of clients and connects / interfaces with the
    * server */
-  bool connectToServer(NimBLEAdvertisedDevice* advDevice) {
-    NimBLEClient* pClient = nullptr;
+  bool connectToServer(BLEAdvertisedDevice* advDevice) {
+    BLEClient* pClient = nullptr;
 
     /** Check if we have a client we should reuse first **/
-    if (NimBLEDevice::getClientListSize()) {
-      pClient = NimBLEDevice::getClientByPeerAddress(advDevice->getAddress());
+    if (BLEDevice::getClientListSize()) {
+      pClient = BLEDevice::getClientByPeerAddress(advDevice->getAddress());
       if (pClient) {
         pClient->connect();
       }
@@ -319,7 +327,7 @@ class Core {
 
     /** No client to reuse? Create a new one. */
     if (!pClient) {
-      if (NimBLEDevice::getClientListSize() >= NIMBLE_MAX_CONNECTIONS) {
+      if (BLEDevice::getClientListSize() >= BLE_MAX_CONNECTIONS) {
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
         XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL.println(
             "Max clients reached - no more connections available");
@@ -327,7 +335,7 @@ class Core {
         return false;
       }
 
-      pClient = NimBLEDevice::createClient();
+      pClient = BLEDevice::createClient();
 
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
       XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL.println("New client created");
@@ -357,7 +365,7 @@ class Core {
 #endif
       }
 
-      // NimBLEDevice::getScan()->stop();
+      // BLEDevice::getScan()->stop();
       // pClient->disconnect();
       delay(retryIntervalMs);
       // Serial.println(pClient->toString().c_str());
@@ -386,7 +394,7 @@ class Core {
     return true;
   }
 
-  bool afterConnect(NimBLEClient* pClient) {
+  bool afterConnect(BLEClient* pClient) {
     memcpy(deviceAddressArr, pClient->getPeerAddress().getNative(),
            deviceAddressLen);
     for (auto pService : *pClient->getServices(true)) {
@@ -408,7 +416,7 @@ class Core {
   }
 
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
-  void charaPrintId(NimBLERemoteCharacteristic* pChara) {
+  void charaPrintId(BLERemoteCharacteristic* pChara) {
     XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL.printf(
         "s:%s c:%s h:%d",
         pChara->getRemoteService()->getUUID().toString().c_str(),
@@ -425,7 +433,7 @@ class Core {
   }
 #endif
 
-  void charaHandle(NimBLERemoteCharacteristic* pChara) {
+  void charaHandle(BLERemoteCharacteristic* pChara) {
     if (pChara->canWrite()) {
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
       charaPrintId(pChara);
@@ -448,7 +456,7 @@ class Core {
     }
   }
 
-  void charaSubscribeNotification(NimBLERemoteCharacteristic* pChara) {
+  void charaSubscribeNotification(BLERemoteCharacteristic* pChara) {
     if (pChara->canNotify()) {
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
       charaPrintId(pChara);
@@ -472,7 +480,7 @@ class Core {
     }
   }
 
-  void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic,
+  void notifyCB(BLERemoteCharacteristic* pRemoteCharacteristic,
                 uint8_t* pData, size_t length, bool isNotify) {
     auto sUuid = pRemoteCharacteristic->getRemoteService()->getUUID();
     if (connectionState != ConnectionState::Connected) {
@@ -490,7 +498,7 @@ class Core {
       isPrinting = true;
       std::string str = (isNotify == true) ? "Notification" : "Indication";
       str += " from ";
-      /** NimBLEAddress and NimBLEUUID have std::string operators */
+      /** BLEAddress and BLEUUID have std::string operators */
       str += std::string(pRemoteCharacteristic->getRemoteService()
                              ->getClient()
                              ->getPeerAddress());
@@ -536,7 +544,7 @@ class Core {
     }
   }
 
-  static void scanCompleteCB(NimBLEScanResults results) {
+  static void scanCompleteCB(BLEScanResults results) {
 #ifdef XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL
     XBOX_SERIES_X_CONTROLLER_DEBUG_SERIAL.println("Scan Ended");
 #endif
